@@ -1,7 +1,7 @@
 # A3C Critic data parallelism
 
-from keras.models import Model
-from keras.layers import Dense, Input
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Input
 
 import tensorflow as tf
 
@@ -16,44 +16,39 @@ def build_network(state_dim):
     model = Model(state_input, v_output)
     #model.summary()
     model._make_predict_function()  # class 안에서 def가 정의되면 필요없음
-    return model, model.trainable_weights, state_input
+    return model
 
 
 class Global_Critic(object):
     """
         Global Critic Network for A3C: V function approximator
     """
-    def __init__(self, sess, state_dim, action_dim, learning_rate):
+    def __init__(self, state_dim, action_dim, learning_rate):
 
-        self.sess = sess
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.learning_rate = learning_rate
 
-        self.model, self.phi, self.states = build_network(state_dim)
+        self.model = build_network(state_dim)
 
-        # placeholder
-        self.td_targets = tf.placeholder(tf.float32, [None, 1])
+        self.critic_optimizer = tf.keras.optimizers.Adam(self.learning_rate)
 
-        # loss function and its gradient
-        v_values = self.model.output
-        loss = tf.reduce_sum(tf.square(self.td_targets-v_values))
-        dj_dphi = tf.gradients(loss, self.phi)
+
+    ## train the critic network run by worker
+    def train(self, states, td_targets):
+        with tf.GradientTape() as tape:
+            # loss function and its gradient
+            v_values = self.model(states)
+            loss = tf.reduce_sum(tf.square(td_targets-v_values))
+        dj_dphi = tape.gradient(loss, self.model.trainable_variables)
 
         # gradient clipping
         dj_dphi, _ = tf.clip_by_global_norm(dj_dphi, 40) #40
 
         # gradients
-        grads = zip(dj_dphi, self.phi)
-        self.critic_optimizer = tf.train.AdamOptimizer(self.learning_rate).apply_gradients(grads)
+        grads = zip(dj_dphi, self.model.trainable_variables)
 
-
-    ## train the critic network run by worker
-    def train(self, states, td_targets):
-        self.sess.run(self.critic_optimizer, feed_dict={
-            self.states: states,
-            self.td_targets: td_targets
-        })
+        self.critic_optimizer.apply_gradients(grads)
 
 
     ## save critic weights
@@ -73,4 +68,4 @@ class Worker_Critic(object):
     """
     def __init__(self, state_dim):
 
-        self.model, self.phi, _ = build_network(state_dim)
+        self.model = build_network(state_dim)

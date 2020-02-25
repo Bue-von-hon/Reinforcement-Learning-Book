@@ -1,8 +1,8 @@
 # PPO with GAE Critic
 
-from keras.models import Model
-from keras.layers import Dense, Input
-from keras.optimizers import Adam
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Input
+from tensorflow.keras.optimizers import Adam
 
 class Critic(object):
     """

@@ -2,7 +2,6 @@
 
 import numpy as np
 import tensorflow as tf
-import keras.backend as K
 import matplotlib.pyplot as plt
 
 from ppo_actor import Actor
@@ -11,9 +10,6 @@ from ppo_critic import Critic
 class PPOagent(object):
 
     def __init__(self, env):
-
-        self.sess = tf.Session()
-        K.set_session(self.sess)
 
         # hyperparameters
         self.GAMMA = 0.95
@@ -33,12 +29,9 @@ class PPOagent(object):
         self.action_bound = env.action_space.high[0]
 
         # create actor and critic networks
-        self.actor = Actor(self.sess, self.state_dim, self.action_dim, self.action_bound,
+        self.actor = Actor(self.state_dim, self.action_dim, self.action_bound,
                            self.ACTOR_LEARNING_RATE, self.RATIO_CLIPPING)
         self.critic = Critic(self.state_dim, self.action_dim, self.CRITIC_LEARNING_RATE)
-
-        # initialize for later gradient calculation
-        self.sess.run(tf.global_variables_initializer())  #<-- no problem without it
 
         # save the results
         self.save_epi_reward = []

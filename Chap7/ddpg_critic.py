@@ -1,8 +1,8 @@
 # DDPG Critic
 
-from keras.models import Model
-from keras.layers import Dense, Input, concatenate
-from keras.optimizers import Adam
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Input, concatenate
+from tensorflow.keras.optimizers import Adam
 
 import tensorflow as tf
 
@@ -11,8 +11,7 @@ class Critic(object):
     """
         Critic Network for DDPG: Q function approximator
     """
-    def __init__(self, sess, state_dim, action_dim, tau, learning_rate):
-        self.sess = sess
+    def __init__(self, state_dim, action_dim, tau, learning_rate):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -20,14 +19,12 @@ class Critic(object):
         self.learning_rate = learning_rate
 
         # create critic and target critic network
-        self.model, self.states, self.actions = self.build_network()
-        self.target_model, _, _ = self.build_network()
+        self.model = self.build_network()
+        self.target_model = self.build_network()
 
         self.model.compile(optimizer=Adam(self.learning_rate), loss='mse')
         self.target_model.compile(optimizer=Adam(self.learning_rate), loss='mse')
 
-        # compute dq_da to feed to the actor
-        self.q_grads = tf.gradients(self.model.output, self.actions)
 
     ## critic network
     def build_network(self):
@@ -43,7 +40,7 @@ class Critic(object):
         q_output = Dense(1, activation='linear')(h3)
         model = Model([state_input, action_input], q_output)
         model.summary()
-        return model, state_input, action_input
+        return model
 
 
     ## q-value prediction of target critic
@@ -62,10 +59,14 @@ class Critic(object):
 
     ## gradient of q-values wrt actions
     def dq_da(self, states, actions):
-        return self.sess.run(self.q_grads, feed_dict={
-            self.states: states,
-            self.actions: actions
-        })
+        a = tf.convert_to_tensor(actions)
+        with tf.GradientTape() as tape:
+            # compute dq_da to feed to the actor
+            tape.watch(a)
+            q = self.model([states, a])
+            q = tf.squeeze(q)
+        q_grads = tape.gradient(q, a)
+        return q_grads
 
     ## single gradient update on a single batch data
     def train_on_batch(self, states, actions, td_targets):

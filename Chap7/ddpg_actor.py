@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from keras.models import Model
-from keras.layers import Dense, Input, Lambda
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Input, Lambda
 
 import tensorflow as tf
 
@@ -11,22 +11,18 @@ class Actor(object):
     """
         Actor Network for DDPG
     """
-    def __init__(self, sess, state_dim, action_dim, action_bound, tau, learning_rate):
-        self.sess = sess
-
+    def __init__(self, state_dim, action_dim, action_bound, tau, learning_rate):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.action_bound = action_bound
         self.tau = tau
         self.learning_rate = learning_rate
 
-        self.model, self.theta, self.states = self.build_network()
-        self.target_model, self.target_theta, _ = self.build_network()
+        self.model = self.build_network()
+        self.target_model = self.build_network()
 
-        self.dq_da_ph = tf.placeholder(tf.float32, [None, self.action_dim])
-        self.dj_dtheta = tf.gradients(self.model.output, self.theta, -self.dq_da_ph)
-        grads = zip(self.dj_dtheta, self.theta)
-        self.actor_optimizer = tf.train.AdamOptimizer(self.learning_rate).apply_gradients(grads)
+
+        self.actor_optimizer = tf.keras.optimizers.Adam(self.learning_rate)
 
     ## actor network
     def build_network(self):
@@ -40,7 +36,7 @@ class Actor(object):
         action_output = Lambda(lambda x: x*self.action_bound)(out)
         model = Model(state_input, action_output)
         model.summary()
-        return model, model.trainable_weights, state_input
+        return model
 
 
     ## actor prediction
@@ -64,10 +60,10 @@ class Actor(object):
 
     ## train the actor network
     def train(self, states, dq_das):
-        self.sess.run(self.actor_optimizer, feed_dict={
-            self.states: states,
-            self.dq_da_ph: dq_das
-        })
+        with tf.GradientTape() as tape:
+            self.dj_dtheta = tape.gradient(self.model(states), self.model.trainable_variables, -dq_das)
+        grads = zip(self.dj_dtheta, self.model.trainable_variables)
+        self.actor_optimizer.apply_gradients(grads)
 
 
     ## save actor weights

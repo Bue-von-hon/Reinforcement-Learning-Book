@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from keras.models import Model
-from keras.layers import Dense, Input, Lambda
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense, Input, Lambda
 
 import tensorflow as tf
 
@@ -11,8 +11,7 @@ class Actor(object):
     """
         Actor Network for PPO
     """
-    def __init__(self, sess, state_dim, action_dim, action_bound, learning_rate, ratio_clipping):
-        self.sess = sess
+    def __init__(self, state_dim, action_dim, action_bound, learning_rate, ratio_clipping):
 
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -22,27 +21,9 @@ class Actor(object):
 
         self.std_bound = [1e-2, 1.0] # std bound
 
-        self.model, self.theta, self.states = self.build_network()
+        self.model = self.build_network()
 
-        # batched actions and advantages based on old trajectory
-        self.actions = tf.placeholder(tf.float32, [None, self.action_dim])
-        self.advantages = tf.placeholder(tf.float32, [None, 1])
-
-        # old policy pdf
-        self.log_old_policy_pdf = tf.placeholder(tf.float32, [None, 1])
-
-        # current policy pdf
-        mu_a, std_a = self.model.output
-        log_policy_pdf = self.log_pdf(mu_a, std_a, self.actions)
-
-        # ratio of current and old policies
-        ratio = tf.exp(log_policy_pdf - self.log_old_policy_pdf)
-        clipped_ratio = tf.clip_by_value(ratio, 1.0-self.ratio_clipping, 1.0+self.ratio_clipping)
-        surrogate = -tf.minimum(ratio * self.advantages, clipped_ratio * self.advantages)
-        loss = tf.reduce_mean(surrogate)
-        dj_dtheta = tf.gradients(loss, self.theta)
-        grads = zip(dj_dtheta, self.theta)
-        self.actor_optimizer = tf.train.AdamOptimizer(self.learning_rate).apply_gradients(grads)
+        self.actor_optimizer = tf.keras.optimizers.Adam(self.learning_rate)
 
     ## actor network
     def build_network(self):
@@ -57,14 +38,14 @@ class Actor(object):
         mu_output = Lambda(lambda x: x*self.action_bound)(out_mu)
         model = Model(state_input, [mu_output, std_output])
         model.summary()
-        return model, model.trainable_weights, state_input
+        return model
 
 
     ## log policy pdf
     def log_pdf(self, mu, std, action):
         std = tf.clip_by_value(std, self.std_bound[0], self.std_bound[1])
         var = std**2
-        log_policy_pdf = -0.5 * (action - mu) ** 2 / var - 0.5 * tf.log(var * 2 * np.pi)
+        log_policy_pdf = -0.5 * (action - mu) ** 2 / var - 0.5 * tf.math.log(var * 2 * np.pi)
         return tf.reduce_sum(log_policy_pdf, 1, keepdims=True)
 
 
@@ -88,13 +69,19 @@ class Actor(object):
 
     ## train the actor network
     def train(self, log_old_policy_pdf, states, actions, advantages):
-        self.sess.run(self.actor_optimizer, feed_dict={
-            self.log_old_policy_pdf: log_old_policy_pdf,
-            self.states: states,
-            self.actions: actions,
-            self.advantages: advantages
-        })
+        with tf.GradientTape() as tape:
+            # current policy pdf
+            mu_a, std_a = self.model(states)
+            log_policy_pdf = self.log_pdf(mu_a, std_a, actions)
 
+            # ratio of current and old policies
+            ratio = tf.exp(log_policy_pdf - log_old_policy_pdf)
+            clipped_ratio = tf.clip_by_value(ratio, 1.0-self.ratio_clipping, 1.0+self.ratio_clipping)
+            surrogate = -tf.minimum(ratio * advantages, clipped_ratio * advantages)
+            loss = tf.reduce_mean(surrogate)
+        dj_dtheta = tape.gradient(loss, self.model.trainable_variables)
+        grads = zip(dj_dtheta, self.model.trainable_variables)
+        self.actor_optimizer.apply_gradients(grads)
 
     ## save actor weights
     def save_weights(self, path):

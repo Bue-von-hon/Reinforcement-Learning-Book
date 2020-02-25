@@ -2,7 +2,6 @@
 
 import numpy as np
 import tensorflow as tf
-import keras.backend as K
 import matplotlib.pyplot as plt
 
 from ddpg_actor import Actor
@@ -12,9 +11,6 @@ from replaybuffer import ReplayBuffer
 class DDPGagent(object):
 
     def __init__(self, env):
-
-        self.sess = tf.Session()
-        K.set_session(self.sess)
 
         ## hyperparameters
         self.GAMMA = 0.95
@@ -33,12 +29,9 @@ class DDPGagent(object):
         self.action_bound = env.action_space.high[0]
 
         ## create actor and critic networks
-        self.actor = Actor(self.sess, self.state_dim,
+        self.actor = Actor(self.state_dim,
                            self.action_dim, self.action_bound, self.TAU, self.ACTOR_LEARNING_RATE)
-        self.critic = Critic(self.sess, self.state_dim, self.action_dim, self.TAU, self.CRITIC_LEARNING_RATE)
-
-        ## initialize for later gradient calculation
-        self.sess.run(tf.global_variables_initializer())  #<-- no problem without it
+        self.critic = Critic(self.state_dim, self.action_dim, self.TAU, self.CRITIC_LEARNING_RATE)
 
         ## initialize replay buffer
         self.buffer = ReplayBuffer(self.BUFFER_SIZE)

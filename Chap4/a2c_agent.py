@@ -12,9 +12,6 @@ class A2Cagent(object):
 
     def __init__(self, env):
 
-        self.sess = tf.Session()
-        K.set_session(self.sess)
-
         # hyperparameters
         self.GAMMA = 0.95
         self.BATCH_SIZE = 32
@@ -30,11 +27,8 @@ class A2Cagent(object):
         self.action_bound = env.action_space.high[0]
 
         # create actor and critic networks
-        self.actor = Actor(self.sess, self.state_dim, self.action_dim, self.action_bound, self.ACTOR_LEARNING_RATE)
+        self.actor = Actor(self.state_dim, self.action_dim, self.action_bound, self.ACTOR_LEARNING_RATE)
         self.critic = Critic(self.state_dim, self.action_dim, self.CRITIC_LEARNING_RATE)
-
-        # initialize for later gradient calculation
-        self.sess.run(tf.global_variables_initializer())  #<-- no problem without it
 
         # save the results
         self.save_epi_reward = []

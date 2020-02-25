@@ -5,7 +5,6 @@ import gym
 
 import numpy as np
 import tensorflow as tf
-import keras.backend as K
 import matplotlib.pyplot as plt
 
 import threading
@@ -27,9 +26,6 @@ class A3Cagent(object):
     """
     def __init__(self, env_name):
 
-        self.sess = tf.Session()
-        K.set_session(self.sess)
-
         # training environment
         self.env_name = env_name
         self.WORKERS_NUM = multiprocessing.cpu_count() #4
@@ -48,12 +44,9 @@ class A3Cagent(object):
         action_bound = env.action_space.high[0]
 
         # create global actor and critic networks
-        self.global_actor = Global_Actor(self.sess, state_dim, action_dim, action_bound, self.ACTOR_LEARNING_RATE,
+        self.global_actor = Global_Actor(state_dim, action_dim, action_bound, self.ACTOR_LEARNING_RATE,
                                          self.ENTROPY_BETA)
-        self.global_critic = Global_Critic(self.sess, state_dim, action_dim, self.CRITIC_LEARNING_RATE)
-
-        # initialize for later gradient calculation
-        self.sess.run(tf.global_variables_initializer())
+        self.global_critic = Global_Critic(state_dim, action_dim, self.CRITIC_LEARNING_RATE)
 
 
     def train(self, max_episode_num):
